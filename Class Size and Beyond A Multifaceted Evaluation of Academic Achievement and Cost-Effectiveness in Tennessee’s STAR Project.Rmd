@@ -1,0 +1,969 @@
+---
+title: "Class Size and Beyond: A Multifaceted Evaluation of Academic Achievement and Cost-Effectiveness in Tennessee’s STAR Project"
+author: "Yifan Chen"
+date: "March 2, 2025"
+output:
+  html_document:
+    df_print: paged
+    number_sections: yes
+---
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.pos = 'H')
+```
+
+```{r warning=FALSE, error=FALSE, message=FALSE, echo=FALSE, include=FALSE}
+# load data
+library(haven)
+library(dplyr)
+library(naniar)
+library(ggplot2)
+library(gplots)
+library(gridExtra)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+# load data
+star_data <- read_sav("STAR_Students.sav")
+star_data_g1 <- dplyr::select(star_data, g1schid, g1surban, g1tchid, g1tgen, g1trace, g1thighdegree, g1tcareer, g1tyears, g1classtype, g1freelunch, g1promote, g1speced, g1specin, g1present, g1absent,g1treadss,g1tmathss,g1tlistss,g1wordskillss,g1readbsraw,g1mathbsraw,g1readbsobjraw,g1mathbsobjraw,g1readbsobjpct,g1mathbsobjpct,g1motivraw,g1selfconcraw,flagg1,FLAGSG1)
+g1_responses <- star_data_g1 %>%
+  select(g1promote,g1treadss,g1tmathss,g1tlistss,g1wordskillss,g1readbsraw,g1mathbsraw,g1readbsobjraw,g1mathbsobjraw,g1readbsobjpct,g1mathbsobjpct,g1motivraw,g1selfconcraw)
+g1_variables <- star_data_g1 %>%
+  select(g1tmathss, g1schid, g1surban, g1tchid, g1tgen, g1trace, g1thighdegree, g1tcareer, g1tyears, g1classtype, g1freelunch, g1speced, g1specin, g1present, g1absent,flagg1,FLAGSG1)
+g1_variables <- g1_variables %>%
+  mutate( 
+    g1schid = as.factor(g1schid), 
+    g1surban = factor(g1surban,
+                      levels = c(1,2,3,4),
+                      labels = c("Inner City", "Suburban", "Rural", "Urban")),
+    g1tchid = as.factor(g1tchid),
+    g1tgen = factor(g1tgen,
+                    levels = c(1, 2),
+                    labels = c("Male", "Female")),
+    g1trace = factor(g1trace,
+                      levels = c(1,2),
+                      labels = c("White", "Black")),
+    g1thighdegree = factor(g1thighdegree,
+                      levels = c(2,3,5,6),
+                      labels = c("Bachelors", "Masters", "Specialist", "Doctoral")),
+    g1tcareer = factor(g1tcareer,
+                      levels = c(1,2,3,4,5,6),
+                      labels = c("Chose not to be on career ladder", "Apprentice", "Probation", "Ladder level 1", "Ladder level 2", "Ladder level 3")),
+    g1classtype = factor(g1classtype, 
+                         levels = c(1, 2, 3),
+                         labels = c("Small", "Regular", "Regular+Aide")), 
+    g1freelunch = factor(g1freelunch,
+                    levels = c(1, 2),
+                    labels = c("Free lunch", "Non-free lunch")),
+    g1speced = factor(g1speced,
+                    levels = c(1, 2),
+                    labels = c("Yes", "No")),
+    g1specin = factor(g1specin,
+                    levels = c(1, 2),
+                    labels = c("Yes", "No")),
+    flagg1 = ifelse(flagg1 == 1, 1, NA),
+    FLAGSG1 = ifelse(FLAGSG1 == 1, 1, NA)
+  )
+```
+
+# Abstract {-}
+
+This report discusses the impact of class size on student academic performance, in this project, first-grade mathematics scores. Using a Harvard Dataverse dataset with school-level, teacher-level, and student-level variables, the essay examines if class size reduction is a viable policy proposal compared to other determinants such as teacher quality and student background. The analysis employs multiple linear regression models with robust standard errors to account for any potential deviations from normality. The results indicate that class-size reduction, particularly for disadvantaged students, has a positive and significant impact on student achievement, which supports the evidence base for class-size reduction policies. While previous research suggests teacher quality and school inputs as additional interventions, this study finds that traditional measures of teacher effectiveness, such as experience and advanced degrees, have no discernible impact on student achievement. The findings contribute to the ongoing policy debate by assisting in providing empirical verification that reducing class size is an economically feasible way of enhancing education outcomes.
+
+# Introduction
+
+## Motivation and Significance
+
+The relationship between class size and student performance has long been a topic of debate in education research. Educators seek the most effective ways to help students improve their academic performance, while legislators and school administrators implement policies based on research findings to enhance student achievement.
+
+Due to a lack of conclusive scientific evidence, Dr. Helen Pate-Bain conducted Project STAR (Student/Teacher Achievement Ratio), a large-scale randomized experiment in Tennessee in the late 1980s to evaluate whether reducing class sizes improves student achievement. The STAR project dataset included approximately 11,600 students across 79 public schools, providing detailed information about schools, teachers, teaching experience, class types, and student performance. In this study, students were randomly assigned to one of three class types: small classes, regular-sized classes, and regular-sized classes with a teacher’s aide. The goal was to assess whether smaller class sizes lead to better academic outcomes.
+
+Past research has shown that smaller class sizes may help students achieve better academic performance in early grades. Proponents of smaller classes argue that reduced student-to-teacher ratios allow for personalized instruction, maximizing the benefits of class-size reduction efforts. However, critics highlight the financial and logistical challenges of implementing such policies. They argue that the benefits of reducing class sizes do not persist in the long term and may diminish in higher grades, suggesting that funding should not be allocated to such efforts if the benefits eventually fade. To investigate this, the STAR Follow-up Studies (1996–1997) examined student performance in later grades and found that tenth graders who had attended STAR small classes (K–3) maintained academic advantages over their peers in regular and regular/aide classes.
+
+Critics later pointed out that some students from small classes did not perform significantly better on standardized tests in later grades, as shown by data from the STAR Follow-up Studies. Although students from small classes had a significantly higher passing rate for the TCE requirement, critics still argued that the benefits of small class sizes must diminish over time. However, Chetty et al. (2011) examined participants' earnings by analyzing college attendance, retirement savings, and neighborhood living quality. They concluded that classroom environments that improve test scores also enhance long-term outcomes, suggesting that the benefits of a positive classroom environment do not fade over time.
+
+Despite research on class quality, class size, and teacher impact on earnings, it remains unclear which factor has the greatest effect. In other words, we do not know which elements influence classroom environments the most. Some critics argue that factors outside class size contribute to academic outcomes. They suggest that funding would be more effectively allocated to other influential elements, such as hiring and training high-quality teachers, relocating schools, or providing additional support to students with poor background. Therefore, in this project, we aim to identify the most significant factors affecting classroom environments or the most economic way to improve classroom environments.
+
+Understanding the key elements that affect classroom environments has significant implications for education policy. Legislators and school administrators could focus funding on the most influential aspects to maximize classroom benefits while optimizing costs. For example, if class size is found to be the most significant factor in academic achievement, policymakers and school administrators may consider investing in reducing student-teacher ratios. Conversely, even if class size is not the most significant factor, it may still be the most cost-effective way to improve classroom environments compared to other influential variables. In that case, prioritizing class-size reduction could still be a viable policy decision. If neither class size nor its cost-effectiveness proves beneficial, resources may be redirected to other areas to improve educational outcomes.
+
+## Research Questions and Hypotheses
+
+As we discussed in Session 1.1, considering our pursuit of key elements that affect classroom environments, we decided to explore the following research interests by analyzing the STAR dataset based on its information and the former analysis. 
+
+### Research Questions
+
+Primary Question: Does class type (small, regular, regular with aide) significantly affect 1st-grade math scores?
+
+Secondary Questions:
+
+1. Which class type (small, regular, regular with aide) is associated with the highest 1st-grade math scores?
+
+2. Do other factors (e.g., teacher quality, school location, student background) influence 1st-grade math scores?
+
+3. Are other factors (e.g., teacher quality, school location, student background) more influential on 1st-grade math scores than class size alone?
+
+4. Are other factors (e.g., teacher quality, school location, student background) more cost-effective in improving classroom environments than class size alone?
+
+### Preliminary Hypotheses
+
+1. Students in small classes will achieve significantly higher 1st-grade math scores compared to students in regular or aide-supported classes (Finn & Achilles, 1999).
+
+2. Small classes will be associated with the highest 1st-grade math scores, followed by regular classes with aides, and then regular classes without aides (Krueger, 1999).
+
+3. Student background will have a statistically significant relationship with 1st-grade math scores, while teacher quality and school location will have small effects on 1st-grade math scores (Rivkin, Hanushek, & Kain, 2005). 
+
+4. Student background will explain more variance in 1st-grade math scores than class type alone (Rivkin, Hanushek, & Kain, 2005).
+
+5. Class size reduction will be more cost-effective than other policies focusing on significant factors for improving math scores (Krueger, 2003).
+
+## Analytical Scope and Key Variables
+
+### Analytical Scope
+
+This project focuses on 1st-grade students from the Tennessee STAR project to evaluate the relationship between class type, other classroom environment factors, and math scores. The dataset, containing student outcomes from the initial STAR experiment conducted in the late 1980s, is obtained from the Harvard Dataverse.
+
+The dataset includes various variables, such as class type (class size), school information (e.g., school ID, school location), teacher information (e.g., teacher ID, teaching experience), student background (e.g., free lunch status, special education status), and student performance (e.g., total math scale score SAT). For this analysis, we will focus solely on 1st-grade students in the STAR experiment. 
+
+### Key Variables
+
+In this project, we will include all relevant variables for our analysis. Table 1.1 presents the key variables used in this study.
+
+<center>
+```{r echo=FALSE, results='asis', warning=FALSE}
+data <- data.frame(
+  `Variable Type` = c("Response Variable", "Primary Factor", "Secondary Factor", "School Variables","",
+                      "Teacher Variables", "", "", "","","","Student Variables","","",""),
+  `Key Variables` = c("Total math scale score SAT grade 1", "Class type", "","School IDs","School urbanicity", 
+                      "Teacher IDs","Teacher gender","Teacher race/ethnicity","Teacher highest degree",
+                      "Teacher career ladder level","Years of total teaching experience",
+                      "Free/reduced lunch status","Special education status",
+                      "Pulled out for special instruction","Student attendance"),
+  `Description` = c("Standardized test scores (continuous scale).", 
+                    "Categorical: small class, regular class, regular class with aide.",
+                    "",
+                    "School Identification Numbers.",
+                    "Categorical: inner city, suburban, rural, urban.",
+                    "Teacher Identification Numbers.",
+                    "Categorical: male, female.",
+                    "Categorical: white, black.",
+                    "Categorical: bachelors, master, specialist, doctoral.",
+                    "Categorical: chose not to be on career ladder, apprentice, probation, ladder level 1, ladder level 2, ladder level 3",
+                    "The years of teaching experience.",
+                    "Categorical: free lunch, non-free lunch.",
+                    "Categorical: yes, no.",
+                    "Categorical: yes, no.",
+                    "Attendance days: 180 × Present Days/(Present Days + Absent Days).")
+)
+cat("Table 1.1 Key Variables Used in Project.\n")
+kable(data, format = "html", escape = FALSE) %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1, width = "10em") %>%
+  column_spec(2, width = "20em") %>%
+  column_spec(3, width = "30em")
+```
+</center>
+
+## Data and Methodology Overview
+
+We will use the dataset from the Harvard Dataverse to analyze the impact of class size and other factors on 1st-grade math scores, identifying key influences on the classroom environment. Since this study focuses on 1st-grade students, we will retain 55% of the original data (6,384 students) after removing observations with missing values. The dataset contains sufficient variables and observations for analysis, allowing us to include all relevant factors without concern for overfitting.
+
+Next, we will conduct descriptive analyses to summarize the data, followed by inferential statistical methods, including multiple linear regression (linear mixed-effects models) and robust standard errors, to address our research questions. These methods will help determine whether class type significantly affects 1st-grade math scores and whether other factors, such as teacher quality and student background, have a greater influence on academic performance.
+
+To assess cost-effectiveness, we will compare the estimated benefits of class-size reduction with alternative policy interventions, such as teacher training and additional student support, by analyzing previous research and related policies. The findings will provide data-driven insights for optimizing education policies and resource allocation.
+
+## Report Structure
+
+This report is structured to systematically address the research questions and hypotheses outlined in Section 1.2. The organization is as follows:
+
+- Chapter 1: Introduction outlines the study’s motivation and focus on the effects of class size on 1st-grade math performance using Project STAR data. It presents key research questions, discusses potential influences beyond class size (such as teacher quality, school location, and student background), and introduces the mixed-effects model used for analysis. The chapter concludes with the study’s goal of informing cost-effective education policies.
+
+- Chapter 2: Background provides context for the study, including details on the Tennessee STAR Project, the target population, sampling mechanisms, variable selection criteria, and a review of existing literature. It concludes with reflections on preliminary findings from an initial analysis.
+
+- Chapter 3: Descriptive Analysis explores univariate and multivariate relationships between 1st-grade math scores and key variables, such as class type, school location, teacher characteristics, and student demographics. Visualizations and summary statistics highlight patterns in the data.
+
+- Chapter 4: Inferential Analysis employs a linear mixed-effects model with robust standard errors to evaluate the impact of class type and other factors on math scores. This chapter directly addresses the primary and secondary research questions, including pairwise comparisons of class types and effect size analyses.
+
+- Chapter 5: Sensitivity Analysis assesses the robustness of the inferential results by examining model residuals and testing assumptions. It also evaluates whether conclusions remain consistent without robust error adjustments.
+
+- Chapter 6: Discussion synthesizes findings, interprets their implications for education policy, and discusses limitations. It also explores cost-effectiveness comparisons between class-size reduction and alternative interventions.
+
+# Background
+
+## Target Population
+
+After the findings of the STAR project, many subsequent studies have proven that class size have a significant effect on student performance, particularly in the early grades. In this project, we will focus on first grade. In this section, we will explore why we focus on first-grade students and process missing values to identify our target population in this project. 
+
+First grade is a significant year for a child's educational development. During this year, students transition from early childhood education to more formal schooling, including skills in reading, math, and social behaviors. These skills provide students with the necessary abilities to participate in standardized tests to record students' performance. Additionally, research has shown that the skills developed in early grades, particularly in reading and math, have a long-term impact on future academic success. Mosteller F. (1995) found that children who were originally enrolled in smaller classes continued to perform better than their peers whose school experience had begun in larger classes when they were returned to regular-sized classes in later grades. Therefore, focusing on first grade is sufficient to represent and analyze key factors in detail for our questions of interest and assess whether smaller class sizes have a greater impact on early academic achievement, which would significantly affect future success.
+
+The data set used in this project comes from the Harvard Dataverse, containing school-level, teacher-level, and student-level information. The study included approximately 11,600 students across 79 public schools, with randomization occurring at both the school and classroom levels. Schools were only included if they could provide at least one small class (13–17 students), one regular class (22–25 students), and one regular class with a full-time teacher’s aide (22–25 students). Within participating schools, students and teachers were randomly assigned to one of the three class types in kindergarten, ensuring a well-balanced experimental design and class assignments persisted through third grade. This randomization helps eliminate selection bias, making causal inference more reliable. 
+
+Since this project focuses on first grade, we selected all variables related to first grade in the dataset. Moreover, we identified the variable "FLAGSG1", representing students in STAR during grade 1 (all first-grade classes in 1986-1987), and "flagg1", representing students with achievement data available in grade 1. Thus, we can use these variables as indicators to identify which students were included in grade 1. 
+
+```{r fig.cap="Figure 2.1 Missing Data Related to Grade 1 Variables.", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+# missing patterns
+library(naniar)
+gg_miss_var(g1_variables)
+```
+
+From Figure 2.1, we observe that missing values in these variables closely align with the indicators (flagg1 and FLAGSG1), suggesting that most missing values correspond to students who did not participate in 1st grade (they may have been in other grades). For the remaining missing values, we calculated the proportion of missing data for each variable to evaluate whether dropping these observations would significantly impact the analysis.
+
+<center>
+```{r echo=FALSE, results='asis', warning=FALSE}
+# number of students in grade 1
+g1_num=sum(is.na(g1_variables$FLAGSG1))
+g1_proportions=data.matrix(colSums(is.na(g1_variables))-g1_num)/ g1_num * 100
+g1_proportions_value=(colSums(is.na(g1_variables))-g1_num)/ g1_num * 100
+data <- data.frame(
+  `Variable_1` = c(rownames(g1_proportions)[1:5]),
+  `Proportion_1` = sprintf("%.2f", g1_proportions_value[1:5]),
+  `Variable_2` = c(rownames(g1_proportions)[6:10]),
+  `Proportion_2` = sprintf("%.2f", g1_proportions_value[6:10]),
+  `Variable_3` = c(rownames(g1_proportions)[11:15]),
+  `Proportion_3` =sprintf("%.2f", g1_proportions_value[11:15]),
+  `Variable_4` = c(rownames(g1_proportions)[16:17], "","",""),
+  `Proportion_4` = c(sprintf("%.2f", g1_proportions_value[16:17]), "","","")
+)
+cat("Table 2.1 Missing Proportions for all Related Variables\n")
+kable(data, format = "html", align = "c") %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1:ncol(data), width = "4em") 
+# dropping missing value
+g1_variables <- g1_variables %>% filter(complete.cases(.))
+```
+</center>
+
+From Table 2.1, we observe that the value of "FLAGSG1" is zero, indicating that all variables with zero values correspond to students who were not in 1st grade. For other variables with positive values, this suggests additional missing data. However, since these values do not exceed five, their impact is minimal due to the small proportions. Thus, we decide to drop all missing observations in this project.
+
+Ultimately, we found that only 76 schools had valid 1st-grade data, confirming the presence of missing values. Our final analysis includes 6,384 students with complete 1st-grade records (no missing values), representing 55% of the original cohort.
+
+## Sampling Mechanism
+
+The Student/Teacher Achievement Ratio (STAR) was a four-year longitudinal class-size study (students entering kindergarten in 1985 or those who began public schooling in first grade in 1986), funded by the Tennessee General Assembly and conducted by the State Department of Education. According to the STAR research consortium's guidelines (Word et al., 1990), the study adhered to the following criteria:
+
+(1) Schools were selected from diverse locations, including inner-city, rural, urban, and suburban areas, to compare the impact of class size across different school types.
+
+(2) Schools were required to participate in the study for a duration of four years.
+
+(3) Both teachers and students were randomly assigned to classes to ensure unbiased results.
+
+(4) The study followed a within-school design, ensuring that each participating school had at least one small class (13–17 students), one regular class (22–25 students), and one regular class with a full-time teacher’s aide (22–25 students).
+
+(5) All teachers involved in the study held proper certification for their assigned grade levels.
+
+## Variables Selection
+
+The STAR dataset provides numerous variables for analysis. For the response variable representing student performance, we choose the total math scale score SAT Grade 1 (g1tmathss) as the dependent variable. Thus, in this project, student performance is represented by SAT math scores. The dataset also includes demographic information for students, teachers, and some school-level data, which allows us to examine whether other factors affect student performance.
+
+For the relevant variables representing key factors related to the student performance (class environment), we have 14 potential variables: Grade 1 School ID (g1schid), School urbanicity (g1surban), Grade 1 teacher ID (g1tchid), Teacher gender (g1tgen), Teacher race/ethnicity (g1trace), Teacher highest degree (g1thighdegree), Teacher career ladder level (g1tcareer), Years of total teaching experience (g1tyears), Class Type (g1classtype), Free/reduced lunch status (g1freelunch), Special education status (g1speced), Pulled out for special instruction (g1specin), Days present at school (g1present), and Days absent from school (g1absent).
+
+Since we plan to use multiple linear regression for this project and there are numerous related variables, we aim to identify how each variable should be treated in the subsequent analysis. Specifically, we need to determine which variables should be treated as fixed effects and which should be treated as random effects.
+
+### Variables with Fixed Effects
+
+The primary variable in this project is Class Type in grade 1 (g1classtype). Our primate question is to explore the effect of student performance on class types. Then, We divide secondary variables that are treated as fixed effects into three levels: school level, teacher level, and student level. 
+
+School-level information includes one variable: School Urbanicity Grade 1 (g1surban). During the selection of schools, legislation required that the STAR project include inner-city, suburban, urban, and rural schools, ensuring representation from all school locations. Schools with more than half of their students on free or reduced-price lunches were defined as inner-city. Schools in the outlying areas of metropolitan cities were classified as suburban. Schools located in towns with over 2,500 residents were considered urban, while all other schools were classified as rural. Rural schools were typically located several miles from metropolitan areas and were situated in counties with large amounts of farmland.
+
+Teacher-level information includes five variables: Teacher gender grade 1 (g1tgen), Teacher race/ethnicity grade 1 (g1trace), Teacher highest degree grade 1 (g1thighdegree), Teacher career ladder level grade 1 (g1tcareer), and Years of total teaching experience grade 1 (g1tyears). The teacher gender variable only includes two categories: male and female. The teacher race variable only includes white and black, with no other racial teachers in grade 1. Additionally, the variable of teacher's highest degree shows the highest degree each teacher obtained, including bachelor's, master's, specialist, and doctoral. Furthermore, the teacher career ladder level includes apprentice, probation, ladder level 1, ladder level 2, ladder level 3, and chose not to be on career ladder, which means they do not choose to be on career ladder so that they do not have career ladder level. Lastly, the years of total teaching experience variable represents teachers' total years of teaching experience.
+
+Student-level information includes five variables: Free/reduced lunch status grade 1 (g1freelunch), Special education status grade 1 (g1speced), Pulled out for special instruction grade 1 (g1specin), Days present at school grade 1 (g1present), and Days absent from school grade 1 (g1absent). Free/reduced lunch status represents whether students have free or reduced-price lunch. Special education status identifies if students receive special education, and special instruction status indicates whether students are pulled out for special instruction. Additionally, the number of days students were present and absent from school was recorded in two separate variables. However, since schools or districts have different numbers of days of the school year, the total days of the school year (present + absent) vary across schools or districts. Therefore, we create a new variable representing the attendance by calculating present days proportion ($N_{present}/(N_{present}+N_{absent})$). Then multiply 180 to keep the same scale as before. In this way, we can eliminate the effect of varying total school days across schools and districts. 
+
+### Variables with Random Effects
+
+The School ID is a 6-digit identifying number, consisting of 3 digits representing the district and 3 digits representing the school. The 3-digit school identifier is unique to each school, making the full 6-digit ID unique to every school in the dataset, meaning it can be used to identify schools. Similarly, each teacher was assigned an 8-digit identifying number (Teacher ID), which includes the 6-digit School ID followed by 2 digits that identify the teacher within that particular school. This design indicates that teachers are nested within their respective schools.
+
+Additionally, since each school follows a strict within-school design and the STAR project is a large-scale randomized experiment, teachers and students are randomly assigned within each participating school, ensuring high internal validity. Given this structure, we consider using a model with random effects for teachers nested within schools to align with the randomized design, rather than assuming independent random effects due to constraints in school selection. Though schools were not randomly selected (geographic constraints), this affects external validity but not internal validity due to within-school randomization. Thus, we aim to determine whether teachers and schools should be treated as random-effect variables in our model. To do so, we first need to assess how much variation in math scores is explained by teachers and schools.
+
+<center>
+```{r echo=FALSE, results='asis', warning=FALSE,message=FALSE}
+library(lme4)
+null_model <- lmer(g1tmathss ~ (1 | g1schid/g1tchid), data = g1_variables)
+var_corr <- VarCorr(null_model)
+cat("Table 2.2 Variance and Standard Deviation of Random Effects.\n")
+kable(var_corr, format = "html", align = "c") %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1:ncol(var_corr[[1]]), width = "4em") 
+```
+</center>
+
+From Table 2.2, we can observe that the variance components for schools and teachers are significantly greater than zero. This suggests that these grouping factors influence student performance and should be modeled as random effects.
+
+## Reviews of Existing Research
+
+The relationship between class type and student performance has been widely studied, with mixed conclusions contributing to education policy. Though some researchers state that small class size could improve student performance significantly, others argue that benefits of reducing class size is minimal comparing with other influential factors, such as teacher quality and student background. In this section, we will provide an overview of key findings from past research, critiques and analyses of competing factors influencing classroom environments. 
+
+The Tennessee STAR project (Student/Teacher Achievement Ratio), conducted in the late 1980s (Pate-Bain et al., 1990), remains the most influential randomized experiment on class-size effects. In the STAR project, students in kindergarten through third grade were randomly assigned to small classes (13–17 students), regular classes (22–25 students), or regular classes with a full-time teacher’s aide. Finn & Achilles (1990) found that students in small classes in kindergarten outperform their peers in regular classes, specifically in math and reading, with effects persisting into the second year. Additionally, these benefits were particularly evident for minority and low-income students, suggesting equity benefits (Nye et al., 2000). These findings suggest that reducing class size may enhance academic performance in early grades. 
+
+Then, Follow-up studies (Pate-Bain et al., 1997), tracked STAR participants into later grades, revealing mixed results. Though students in small classes retained higher scores, critics argued these effects might diminish over time (Krueger, 1999) due to small deviation of scores across grades. Hanushek (1999) conducted a meta-analysis of various class-size studies and concluded that while some studies show positive effects, many others indicate little to no long-term benefit. Similarly, Hattie (2008) found that the impact of class size on academic performance is relatively small compared to other instructional strategies, suggesting that focusing on teacher quality and instructional methods may yield better results. However, the positive findings of Class-Size Reduction (CSR) studies throughout the United States, Australia, Hong Kong, Sweden, Great Britain, and elsewhere have proven that small Classes in the early grades have both short-term and long-term effects (Achilles, 2012).
+
+Beyond class size, numerous studies emphasize the importance of teacher quality in influencing student outcomes. Hanushek (1999) identifies teacher effectiveness as the most critical school-based factor, rather than class size reductions considering the high cost of hiring more teachers. Similarly, Chetty et al. (2014) used VA models to demonstrate that students who had high-quality teachers in early grades had better long-term outcomes, including higher earnings and college attendance rates. These findings suggest that providing more funding for teacher training and recruitment may be a more cost-effective strategy than reducing class sizes alone.
+
+Except for class size and teacher quality, several other factors affect student performance, such as student background and school location. Coleman et al. (1966) concluded that family background and peer influences have a stronger effect on student performance than school resources alone. School location also have a significant effect on students achievement. For example, urban schools may more easily access resources but meanwhile high student-teacher ratios may exist because of numerous students. Conversely, rural schools may have more small classes but struggle with limited funding and resources (Lee & Burkam, 2003). From these findings of other factors, policymakers should consider a broader set of variables when designing education interventions.
+
+Considering the financial limitation in education policy, researchers have examined whether reducing class size is a cost-effective strategy compared to other interventions. Levin and McEwan (2001) conducted a cost-benefit analysis, showing that alternative investments such as teacher development and early childhood education programs may yield higher returns than class size reduction. However, these findings do not account for the long-term societal benefits of smaller class sizes (Chetty et al., 2011) and teacher allocations. When considering both immediate academic gains and long-term economic benefits, class size reduction emerges as a highly cost-effective policy intervention.
+
+The existing literature suggests an evident positive relationship between class size and student performance. While some critics argue that teacher quality, socioeconomic factors, and school locations, play a more significant role, class sizes reduction yields both immediate academic improvements and long-term economic benefits. Moreover, smaller classes can help students build a better relationship with teachers, and at the same time, teachers can know more about their students to help their academics better. Given these findings, investing in class-size reduction represents a cost-effective policy decision that can maximize student achievement while providing broader societal advantages.
+
+## Reflection from Initial Report
+
+In our initial report, we found that class size maintained a significant relationship with 1st-grade mean math scores when aggregating math scores at the teacher/class level. However, we later discovered that the model used in the initial report did not pass the normality test, indicating a potential deviation from normality. To address this issue, we resolved it in this project by using robust standard errors to relax the strict assumptions of the ANOVA model.
+
+Additionally, we found that the answers to the primary and secondary questions in our initial project remained robust when using alternative models, which showed a significant relationship between class types and student performance (mean math scores). Therefore, in this project, we aim to explore more than just the effects of class type alone. In the initial report, we included only class type, school location, and school IDs, considering only school-level variables. For further exploration, we chose not to aggregate our dataset at the teacher/class level in this project, as doing so could result in the loss of many useful observations for our analysis. Instead, we include all relevant variables: school-level, teacher-level, and student-level variables. This approach allows us not only to explore the relationship between class types and student performance (math scores) but also to examine whether other factors related to the classroom and learning environment affect student performance.
+
+# Descriptive analysis
+
+## Univariate Descriptive Statistics
+
+After reviewing the specific information of the variables, we selected the relevant ones and summarized the univariate descriptive statistics for the chosen variables.
+
+<center>
+```{r echo=FALSE, results='asis'}
+g1_variables <- g1_variables %>%
+  mutate(g1sattendance=g1present/(g1absent+g1present))
+# keep the same scale with the former variable
+g1_variables$g1sattendance <- 180*g1_variables$g1sattendance
+g1_variables_selected <- g1_variables %>%
+  select(g1tmathss, g1classtype, g1schid, g1surban, g1tchid, g1tgen, g1trace, g1thighdegree, g1tcareer, g1tyears, g1freelunch, g1speced, g1specin,g1sattendance)
+cat("Table 3.1 Univariate Descriptive Statistics of Variables\n")
+kable(summary(g1_variables_selected), format = "html", align = "c") %>%
+  kable_styling(font_size = 12) %>%
+  column_spec(1, width = "6em") %>%
+  column_spec(2:ncol(summary(g1_variables_selected)), width = "20em") %>%
+  scroll_box(width = "100%", height = "500px")
+```
+</center>
+
+Table 3.1 summarizes the following variables for 1st-grade students: student math scores (g1tmathss), class types (g1classtype), Grade 1 School ID (g1schid), school urbanicity (g1surban), Grade 1 teacher ID (g1tchid), teacher gender (g1tgen), teacher race/ethnicity (g1trace), teacher highest degree (g1thighdegree), teacher career ladder level (g1tcareer), total teaching experience (g1tyears), free/reduced lunch status (g1freelunch), special education status (g1speced), special instruction status (g1specin), and student attendance (g1sattendance).
+
+(1) Math scores range from 404 to 676, with a median of 529 and a mean of 530.7, suggesting a nearly balanced distribution.
+
+(2) Class types include Small (1,820 students), Regular (2,433 students), and Regular+Aide (2,131 students), indicating different instructional settings.
+
+(3) School IDs show specific schools and a large "Other" category (5,513 students) due to the presence of many different school IDs.
+
+(4) School urbanicity includes Inner City (1,291 students), Suburban (1,522 students), Rural (2,983 students), and Urban (588 students), suggesting varying school locations.
+
+(5) Teacher IDs (representing unique teachers) show some specific teachers (with one teacher instructing several students) and a large "Other" category (6,223 students) due to the presence of many different Teacher IDs.
+
+(6) Teacher gender includes Male (27 students) and Female (6,357 students), suggesting an imbalanced distribution.
+
+(7) Teacher race includes White (5,274 students) and Black (1,110 students), also suggesting an imbalanced distribution.
+
+(8) Teacher highest degree includes Bachelor's (4,143 students), Master's (2,184 students), Specialist (37 students), and Doctoral (20 students), suggesting that most teachers have a Bachelor's or Master's degree, resulting in an imbalanced distribution.
+
+(9) Teacher career ladder levels include Chose not to be on the career ladder (482 students), Apprentice (689 students), Probation (619 students), Ladder level 1 (4,222 students), Ladder level 2 (104 students), and Ladder level 3 (268 students), suggesting variation in teacher career ladder levels.
+
+(10) Teacher experience years range from 0 to 42, with a median of 10 and a mean of 11.58, indicating a fairly balanced distribution.
+
+(11) Free/reduced lunch status includes Free lunch (3236 students) and Non-free lunch (3148 students), indicating whether students receive free lunch.
+
+(12) Special education status includes Yes (67 students) and No (6317 students), indicating whether students receive special education services. 
+
+(13) Pulled out for special instruction status includes Yes (1092 students) and No (5292 students), indicating whether students are pulled out for special instruction. 
+
+(14) Student attendance ranges from 84.71 to 180, with a median of 173.25 and a mean of 171.20, indicating the number of days students were present in school.
+
+## Multivariate Descriptive Analysis
+
+Now, we want to explore the relationships between math scores and our selected variables, including both primary and secondary variables.
+
+### Math Score v.s. Class Type
+
+Figure 3.1 analyzes the relationship between class type and math scores using two visualizations. The bar plot (left) shows the distribution of students across class types. The Regular class type has the highest count, followed by Regular+Aide, while Small classes have the lowest count. From the density plot (right), the math score distribution is similar across all class types, showing no significant difference in math score distributions between the class types. However, small classes slightly outperform the other class types.
+
+```{r fig.cap="Figure 3.1 Class Type Analysis.", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+plot1=ggplot(g1_variables_selected, aes(x = g1classtype, fill = g1classtype)) +
+  geom_bar() +
+  labs(x = "Class Type", y = "Count")+
+  theme(
+    legend.text = element_text(size = 5),  
+    legend.title = element_text(size = 6)
+  )
+plot2=ggplot(g1_variables_selected, aes(x = g1tmathss, fill = g1classtype)) +
+  geom_density(alpha = 0.5) +
+  labs(x = "Math Scores", y = "Density")+
+  theme(
+    legend.text = element_text(size = 5),  
+    legend.title = element_text(size = 6)
+  )
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+### Math Score v.s. School Level Information
+
+Table 3.2 presents summary statistics for schools based on math scores, showing the first three schools at the top of the table and the last three schools at the bottom, ordered by mean math scores due to the large number of schools. It reveals substantial variation in math performance across schools. Schools with higher mean scores also tend to have higher minimum and maximum values, suggesting overall stronger performance.
+
+<center>
+```{r echo=FALSE, results='asis'}
+school_level <- g1_variables_selected %>%
+  group_by(g1schid) %>%
+  summarise(
+    mean = mean(g1tmathss, na.rm = TRUE),   # Mean of mean math scores
+    median = median(g1tmathss, na.rm = TRUE),  # Median of mean math scores
+    min = min(g1tmathss, na.rm = TRUE),  # Minimum of mean math scores
+    max = max(g1tmathss, na.rm = TRUE),  # Maximum of mean math scores
+    n_students = n(),   
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean))
+combined_summary <- bind_rows(head(school_level,3), tail(school_level,3))
+cat("Table 3.2 Top 3 and Bottom 3 Schools Arrange by Math Score.\n")
+kable(head(combined_summary), format = "html", align = "c") %>%
+kable_styling(full_width = FALSE) %>%
+column_spec(1:ncol(combined_summary), width = "5em") 
+```
+</center>
+
+Figure 3.2 not only shows the school distribution by urbanicity but also compares 1st-grade math scores across different school locations. From the two plots, we can observe that rural schools dominate in number, while urban schools are the least represented. Additionally, inner-city students tend to have lower math scores, while students in other school types perform better. Suburban, rural, and urban schools show comparable math performance. However, the overlap in distributions suggests that other factors, such as teaching quality or student background, might influence these results.
+
+```{r fig.cap="Figure 3.2 School Location Analysis.", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+# School Urbanicity
+plot1=ggplot(g1_variables_selected, aes(x = g1surban, fill = g1surban)) +
+  geom_bar() +
+  labs(x = "Urbanicity", y = "Count")
+plot2=ggplot(g1_variables_selected, aes(x = g1surban, y = g1tmathss, fill = g1surban)) +
+  geom_boxplot() +
+  labs(x = "Urbanicity", y = "Math Scores")
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+The heatmap in Figure 3.3 shows the average math scores across different class types (Small, Regular, Regular + Aide) and school urbanicity (Inner City, Suburban, Rural, Urban). Students in Small classes consistently achieve higher math scores across all school locations, with suburban and urban schools performing the best. Inner-city schools have the lowest average math scores, regardless of class type.
+
+Figure 3.3 also illustrates that the Small class type (red line) consistently outperforms the others in all school locations, with the highest scores in suburban and urban settings, as reflected in the heatmap. The Regular class type (green line) maintains relatively stable performance, peaking in rural schools. The Regular + Aide class type (blue line) shows some improvement over inner-city schools but underperforms compared to Small classes in other urban settings. Overall, students in inner-city schools perform the worst, while those in suburban and rural schools tend to excel.
+
+These findings support the argument that reducing class size positively impacts student achievement, particularly in suburban and urban environments.
+
+```{r fig.cap="Figure 3.3 School Location v.s. Class Type.", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+# Aggregate data
+agg_data <- g1_variables_selected %>%
+  group_by(g1classtype, g1surban) %>%
+  summarise(avg_math = mean(g1tmathss, na.rm = TRUE))
+# Heatmap
+plot1=ggplot(agg_data, aes(x = g1classtype, y = g1surban, fill = avg_math)) +
+  geom_tile() +
+  scale_fill_viridis_c()
+# Interaction Between School Type and Class Type
+plot2 <- ggplot(agg_data, aes(x = g1surban, y = avg_math, color = g1classtype, group = g1classtype)) +
+  geom_line() +
+  geom_point() +
+  labs(x = "School Type",
+       y = "Average Math Scores",
+       color = "Class Type") +
+  theme_minimal()
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+### Math Score v.s. Teacher Level Information
+
+Table 3.3 presents summary statistics for teachers based on math scores (showing the first three teachers at the top of the table and the last three teachers at the bottom, ordered by mean math scores, as there are many teachers). It shows a significant performance gap between the top and bottom teachers, with a mean difference of over 130 points in student scores. Students in the top teachers’ classes consistently perform well, while those in the bottom teachers’ classes have much lower overall achievement. The number of students per class does not appear to significantly correlate with math scores.
+
+<center>
+```{r echo=FALSE, results='asis'}
+teacher_level <- g1_variables_selected %>%
+  group_by(g1tchid) %>%
+  summarise(
+    mean = mean(g1tmathss, na.rm = TRUE),   # Mean of mean math scores
+    median = median(g1tmathss, na.rm = TRUE),  # Median of mean math scores
+    min = min(g1tmathss, na.rm = TRUE),  # Minimum of mean math scores
+    max = max(g1tmathss, na.rm = TRUE),  # Maximum of mean math scores
+    n_students = n(),   
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean))
+combined_summary <- bind_rows(head(teacher_level,3), tail(teacher_level,3))
+cat("Table 3.3 Top 3 and Bottom 3 Teachers Arrange by Math Score.\n")
+kable(head(combined_summary), format = "html", align = "c") %>%
+kable_styling(full_width = FALSE) %>%
+column_spec(1:ncol(combined_summary), width = "5em") 
+```
+</center>
+
+Figure 3.4 shows the distribution of teacher gender and math scores across teacher gender. We can observe that the majority of teachers are female, with very few male teachers. In addition, math scores by teacher gender show similar distributions, with slight variations but no significant difference in median scores between male and female teachers. Overall, gender distribution among teachers is highly skewed towards females, yet math performance does not significantly differ based on teacher gender.
+
+```{r fig.cap="Figure 3.4 Teacher Gender Analysis.", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+# teacher gender 
+plot1=ggplot(g1_variables_selected, aes(x = g1tgen, fill = g1tgen)) +
+  geom_bar() +
+  labs(y = "Count") +
+  theme_minimal()
+plot2=ggplot(g1_variables_selected, aes(x = g1tgen, y = g1tmathss, fill = g1tgen)) +
+  geom_boxplot() +
+  labs(x = "Gender", y = "Math Scores") +
+  theme_minimal()
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+Figure 3.5 represents the student race distribution by class type. Across all class types (Small, Regular, Regular+Aide), the majority of students are White, while a smaller proportion are Black. The racial composition remains consistent across class types, indicating no significant racial disparities in class assignment.
+
+```{r fig.cap="Figure 3.5 Student Race Distribution by Class Type.", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+# teacher race
+ggplot(g1_variables_selected, aes(x = g1classtype, fill = g1trace)) +
+  geom_bar(position = "fill") +
+  labs(
+    x = "Class Type",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+```
+
+Figure 3.6 not only analyzes teacher degree distribution but also explores its relationship with math scores. The majority of teachers have a Bachelor's degree, followed by a significant number with a Master's degree, while a very small proportion of teachers hold Specialist or Doctoral degrees. Under this imbalance distribution, math scores appear similar across different degree levels, meaning no significant differences exist in the distribution. Teachers with higher degrees (Doctoral and Specialist) show slightly more variability in scores (due to a small sample).
+
+```{r fig.cap="Figure 3.6 Teacher Highest Degree Analysis.", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+# g1thighdegree
+plot1=ggplot(g1_variables_selected, aes(x = g1thighdegree, fill = g1thighdegree)) +
+  geom_bar() +
+  labs(x = "Degree", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+plot2=ggplot(g1_variables_selected, aes(x = g1thighdegree, y = g1tmathss, fill = g1thighdegree)) +
+  geom_boxplot() +
+  labs(x = "Degree", y = "Math Scores") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+Figure 3.7 examines the relationship between teacher career levels and math scores. The bar plot shows that the majority of teachers belong to Ladder level 1, significantly outnumbering other groups, while categories such as Apprentice, Probation, and higher ladder levels (2 and 3) have much smaller proportions. The violin plot, representing the distribution density of math scores, illustrates that the overall range of scores is similar across career levels. However, teachers who chose not to be on the career ladder exhibit a more concentrated distribution of math scores, while other levels show more spread-out distributions. Additionally, higher ladder levels do not show a clear advantage in math scores, suggesting that career ladder position may not strongly correlate with student performance.
+
+```{r fig.cap="Figure 3.7 Teacher Career Ladder Level Analysis.", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+# Teacher Career Ladder
+plot1=ggplot(g1_variables_selected, aes(x = g1tcareer, fill = g1tcareer)) +
+  geom_bar() +
+  labs(x = "Career Ladder Level", y = "Count") +
+  theme(
+    legend.text = element_text(size = 5),  
+    legend.title = element_text(size = 6),
+    axis.text.x = element_text(angle = 45, hjust = 1,size=5))
+# Violin plot
+plot2=ggplot(g1_variables_selected, aes(x = g1tcareer, y = g1tmathss, fill = g1tcareer)) +
+  geom_violin() +
+  labs(x = "Career Ladder Level", y = "Math Scores")+
+  theme(
+    legend.text = element_text(size = 5),  
+    legend.title = element_text(size = 6),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 5)
+  )
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+Figure 3.8 examines the impact of teacher experience on math scores through two plots. The density plot of teacher experience years shows that most teachers have relatively low years of experience, with a peak around 0–10 years. The number of teachers with more than 20 years of experience significantly decreases. From the other plot, math scores do not exhibit a clear upward or downward trend with teacher experience. Different class types (Small, Regular, Regular+Aide) have similar distributions of math scores, with the Small class (red line) consistently outperforming the others.
+
+Overall, math scores show a significant gap between top-performing and bottom-performing teachers. Gender, degree level, and career ladder position do not strongly impact scores. Teacher experience also shows no clear trend, though students in small classes perform better.
+
+```{r fig.cap="Figure 3.8 Teacher Experience Years Analysis.", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+# teacher experience years
+# Density plot of teaching experience
+plot1=ggplot(g1_variables_selected, aes(x = g1tyears)) +
+  geom_density(fill = "skyblue", alpha = 0.7) +
+  theme_minimal()
+# Scatterplot with regression lines
+plot2=ggplot(g1_variables_selected, aes(x = g1tyears, y = g1tmathss, color = g1classtype)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(x = "Years of Experience", y = "Math Scores")+
+  theme_minimal()
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+### Math Score v.s. Variables of Student Background
+
+Figure 3.9 investigates the relationship between student background (measured by free lunch eligibility) and math scores by using a density plot. Students receiving free lunch (red) generally have lower math scores, with the peak distribution shifted left compared to students not receiving free lunch (blue). Students without receiving free lunch tend to have higher math scores and a wider distribution compared to the right. This suggests a potential socioeconomic effect on student performance because students from lower-income backgrounds (eligible for free lunch) tend to score lower in math.
+
+```{r fig.cap="Figure 3.9 Math Scores by Free Lunch Eligibility.", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+ggplot(g1_variables_selected, aes(x = g1tmathss, fill = g1freelunch)) +
+  geom_density(alpha = 0.5) +
+  labs(x = "Math Scores", y = "Density")
+```
+
+Figure 3.10 examines the relationship between student characteristics and math scores through three plots. The first plot of Figure 3.10 shows that students who received special instruction tend to have lower median math scores than those who did not, with similar ranges of scores for both groups. The second plot shows that students in special education tend to have slightly lower median math scores compared to those not in special education, with some overlap in the distributions but similar ranges. The last plot of Figure 3.10 indicates a positive relationship between attendance and math scores. As the number of attendance days increases, math scores tend to improve.
+
+In conclusion, students receiving free lunch, special instruction, or special education services tend to have lower math scores, while higher attendance is associated with higher math scores.
+
+```{r fig.cap="Figure 3.10 Student Information Analysis.", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+plot1=ggplot(g1_variables_selected, aes(x = g1specin, y = g1tmathss)) + 
+  geom_boxplot()
+plot2=ggplot(g1_variables_selected, aes(x = g1speced, y = g1tmathss)) + 
+  geom_boxplot()
+plot3=ggplot(g1_variables_selected, aes(x = g1sattendance, y = g1tmathss)) + 
+  geom_point(alpha = 0.3) + 
+  geom_smooth(method = "lm")
+# Arrange the plots in a single row
+grid.arrange(plot1, plot2, plot3, ncol = 3)
+```
+
+# Inferential analysis
+
+Before fitting the multiple linear regression model, we first check for the potential presence of multicollinearity among the predictors. Therefore, we calculate the Variance Inflation Factor (VIF) for each variable. Table 4.1 below shows the VIF values for all variables. Since all values are below 5, we conclude that there is no significant multicollinearity present in the model. As a result, we do not consider adding interaction terms in our model.
+
+<center>
+```{r echo=FALSE, results='asis',warning=FALSE,message=FALSE}
+library(car)
+VIF=vif(lm(g1tmathss~g1classtype+g1surban+g1tgen+g1trace+g1thighdegree+g1tcareer+g1tyears+g1freelunch+g1speced+g1specin+g1sattendance, data = g1_variables_selected))
+cat("Table 4.1 VIF Table.\n")
+kable(VIF, format = "html", align = "c") %>%
+kable_styling(full_width = FALSE) %>%
+column_spec(1:ncol(VIF), width = "5em") 
+```
+</center>
+
+After checking for the absence of significant multicollinearity, we proceed to determine whether random effects should be included in the model. We define both the mixed model (with random effects) and the fixed model (without random effects). After conducting an Analysis of Variance (ANOVA), we observe that the p-value is nearly zero, suggesting that the mixed model is a better fit for our data.
+
+<center>
+```{r echo=FALSE, results='asis',warning=FALSE,message=FALSE}
+fixed_model=lm(g1tmathss~g1classtype+g1surban+g1tgen+g1trace+g1thighdegree+g1tcareer+g1tyears+g1freelunch+g1speced+g1specin+g1sattendance 
+         ,g1_variables_selected)
+library(lmerTest)
+mixed_model <- lmer(
+  g1tmathss~g1classtype+g1surban+g1tgen+g1trace+g1thighdegree+g1tcareer+g1tyears+g1freelunch+g1speced+g1specin+g1sattendance + (1 | g1schid/g1tchid),  # Schools > Teachers (nested)
+  data = g1_variables_selected, 
+  REML = TRUE
+)
+cat("Table 4.2 ANOVA Table for Checking Random Effects.\n")
+kable(anova(mixed_model,fixed_model), format = "html", align = "c") %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1:ncol(anova(mixed_model,fixed_model)), width = "8em") 
+```
+</center>
+
+## Linear Mixed Effects Model Statement
+
+Thus, based on the ANOVA results, we use finally the mixed model, which includes both fixed and random effects. The appropriate mixed-effects model can be defined as follows:
+
+$$Y_{ijk} = \beta_0 + \beta_1\text{(ClassType)}_{ij} + \beta_2\text{(SchoolUrbanicity)}_i + 
+\beta_3\text{(TeacherGender)}_{ij} + \beta_4\text{(TeacherExperience)}_{ij} \\+ \beta_5\text{(TeacherDegree)}_{ij} + \beta_6\text{(TeacherCareer)}_{ij} + \beta_7\text{(TeacherRace)}_{ij} + \beta_8\text{(FreeLunch)}_{ijk}\\ + \beta_9\text{(SpecialEd)}_{ijk} + \beta_{10}\text{(SpecialInstruct)}_{ijk} + \beta_{11}\text{(Attendance)}_{ijk} + \mu_i + v_{ij} + \epsilon_{ijk}$$
+
+where: the index $i$ represents the i-th school ($i=1,\dots,M$), the index $j$ represents the j-th teacher within school i ($j=1,\dots,J_i$), and the index $k$ represents the k-th student within teacher j in school i ($k=1,\dots,K_{ij}$). 
+
+  - $Y_{ijk}$: Math scores the k-th student within the j-th teacher in i-th school.
+
+  - $\text{(ClassType)}_{ij}$: Class type for teacher j in school i.
+
+  - $\text{(SchoolUrbanicity)}_i$: Urbanity of school i. 
+  
+  - $\text{(TeacherGender)}_{ij}$: Teacher j' s gender in school i.
+  
+  - $\text{(TeacherExperience)}_{ij}$: Teacher j' s teaching experience years in school i.
+  
+  - $\text{(TeacherDegree)}_{ij}$: Teacher j' s highest degree in school i.
+  
+  - $\text{(TeacherCareer)}_{ij}$: Teacher j' s ladder career level in school i.
+  
+  - $\text{(TeacherRace)}_{ij}$: Teacher j' s race in school i.
+  
+  - $\text{(FreeLunch)}_{ijk}$: Free lunch status of student k within teacher j in school i. 
+  
+  - $\text{(SpecialEd)}_{ijk}$: Special education status of student k within teacher j in school i. 
+  
+  - $\text{(SpecialInstruct)}_{ijk}$: Special instruction status of student k within teacher j in school i.
+  
+  - $\text{(Attendance)}_{ijk}$: Attendance of student k within teacher j in school i. 
+  
+  - $\mu_i$: Random effect of the i-th school, $\mu_i \sim N(0,\sigma_{\text{school}}^2)$.
+  
+  - $v_{ij}$: Random effect of the j-th teacher in school i, $v_{ij} \sim N(0,\sigma_{\text{teacher}}^2)$.
+
+  - $\epsilon_{ijk}$: Random error term of the k-th student within teacher j in school i, i.i.d. $\epsilon_{ijk} \sim N(0,\sigma_{\text{students}}^2)$.
+  
+The assumption about this model: 
+  
+  1. Normality: $\mu_i$, $v_{ij}$ and $\epsilon_{ijk}$ are normal distribution.
+  
+  2. Independence: residuals are independent conditional on random effects.
+  
+  3. Homoscedasticity: residual variance is constant across schools, teachers and students.
+  
+  4. Hierarchy: teachers are nested within schools, reflecting the randomized design of the STAR project.
+
+## Primary Question
+
+Because of the strict assumptions required for ANOVA models (such as normality and homoscedasticity), we consider using robust standard errors in our analysis to relax these assumptions. This allows us to be suitable for potential heteroscedasticity or deviations from normality.
+
+Table 4.3 shows the estimated coefficients for class types, along with their standard errors, t-statistics, and p-values. The intercept is 422.0292, representing the baseline value when all predictor variables are at their reference levels. Then the values of coefficients mean over or lower than the baseline, depending on their positive or negative values. The coefficient for the "Regular" class type is -10.9338, meaning that the math score is 10.93 units averagely lower for students in the "Regular" class compared to those in the "Small" class (the baseline). Additionally, the coefficient for the "Regular+Aide" class type is -9.4732, indicating that students in this class type have an outcome that is 9.47 units lower than those in the "Small" class. These effects are both significant as their $p_{value}$ are nearly zero. 
+
+These results show that class type plays a significant role in math scores (student performance), with "Small" classes performing better on average compared to the "Regular" and "Regular+Aide" class types. (Secondary questions will be explored in the following analysis.) 
+
+<center>
+```{r echo=FALSE, results='asis',warning=FALSE,message=FALSE}
+cat("Table 4.3 Class Type Coefficients.\n")
+library(clubSandwich)
+# Robust standard errors (adjusting for heteroscedasticity/clustering)
+robust_se <- coef_test(mixed_model, vcov = "CR2")
+# Extract class type coefficients
+class_type_results <- robust_se[1:3, ]
+kable(class_type_results, format = "html", align = "c") %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1:ncol(class_type_results), width = "8em") 
+```
+</center>
+
+## Secondary Questions
+
+### Which class type is best?
+
+For exploring which class type is best, we decided to use Tukey’s method to process pairwise comparisons. A key assumption specific to Tukey’s test is a balanced design, but it remains robust to mild sample size imbalances in this study (Small: 124, Regular: 115, Regular+Aide: 100). The significance level: $\alpha = 0.05$, so the $conf.level = 0.95$. From Table 4.4, we could observe that the difference between the "Small" and "Regular" class types, between "Small" and "Regular+Aide" are highly significant, as their $p_{value}$ are nearly to zero. However, the difference between the "Regular" and "Regular+Aide" class types is not significant, with $p_{value}=0.8172$. 
+
+<center>
+```{r echo=FALSE, results='asis',warning=FALSE,message=FALSE}
+cat("Table 4.4 Pairwise Comparisons with Tukey Method.\n")
+library(emmeans)
+emm <- emmeans(mixed_model, pairwise ~ g1classtype)
+contrasts_df <- as.data.frame(emm$contrasts)
+kable(contrasts_df, format = "html", align = "c") %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1:ncol(contrasts_df), width = "8em") 
+```
+</center>
+
+These results, also shown in Figure 4.1, suggest that students in the "Small" class outperform those in both the "Regular" and "Regular+Aide" classes. However, there is no significant difference between the "Regular" and "Regular+Aide" classes.
+
+```{r fig.cap="Figure 4.1 Class Type Comparison (Adjusted for Covariates).", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+plot(emm, comparisons = TRUE)
+```
+
+### Do other factors matter?
+
+Table 4.5 shows the estimated coefficients for school-level variables, with the intercept representing inner-city schools. The baseline math score is 422.0292 with a standard error (SE) of 15.16, indicating a relatively high level of precision. Students in suburban schools score 12.5207 points higher than those in inner-city schools, and the effect is statistically significant (p = 0.0363). Additionally, students in rural schools with scores 22.57 points higher, show stronger significance (p = 0.0002), meaning a robust difference from inner-city schools. However, students in urban schools with 16.70 points higher, have the lowest p-value (p = 0.074 > 0.05), suggesting the result is suggestive but not statistically strong.
+
+Therefore, students in other schools perform significantly better than students in inner-city schools, with the largest advantage seen in rural areas, which corresponds with the former analysis in 3.2.2. Moreover, urban schools show improvement, but the effect is not as statistically strong. From these findings, we can know school location has a meaningful impact on student achievement, and inner-city schools face the greatest challenges because of the lowest scores.
+
+<center>
+```{r echo=FALSE, results='asis',warning=FALSE,message=FALSE}
+cat("Table 4.5 School-Level Variables Coefficients.\n")
+# school level
+# Extract coefficients for school predictors
+school_factors <- robust_se[c(1,4:6), ]
+kable(school_factors, format = "html", align = "c") %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1:ncol(school_factors), width = "8em") 
+```
+</center>
+
+Table 4.6 examines the relationship between teacher-level variables and student math scores. 
+
+(1) Teacher Gender 
+
+    For teacher gender, the intercept (422.0292) represents male teachers as the baseline. Female teachers have a slightly negative effect (-8.5929 points) on student math scores, but the result is not statistically significant (p = 0.479). This suggests that, in this analysis, teacher gender does not have a meaningful impact on student performance.
+    
+(2) Teacher Race
+    
+    For teacher race, the intercept (422.0292) represents white teachers as the baseline. Black teachers are associated with a +5.87 point increase, but this effect is also not statistically significant (p = 0.191).
+    
+(3) Teacher Highest Degree Obtained
+    
+    The intercept (422.0292) for teacher highest degree obtained represents bachelor's degree teachers as the baseline. A Master's degree has no significant impact on student math scores (p = 0.616). A Specialist degree shows a positive effect (+7.34 points), but this effect is not strongly significant (p = 0.146). Additionally, a Doctoral degree is associated with a negative effect (-7.52 points), but this is also not statistically significant (p = 0.217). These results suggest that teacher highest degree obtained does not have a strong or consistent impact on student performance in this analysis.
+    
+(4) Teacher Career Ladder Levels
+    
+    The intercept (422.0292) for teacher career ladder levels represents teachers who chose not to be on the career ladder as the baseline. None of the career ladder categories show significant differences from the baseline, indicating that being on a career ladder level does not have a statistically significant impact on student math scores in this analysis.
+    
+(5) Teacher Teaching Experience Years
+    
+    The effect of years of experience is very small, with a decrease of -0.15 points per year, and it is not statistically significant (p = 0.260). This suggests that, in this analysis, the number of years a teacher has been teaching does not have a meaningful impact on student math scores.
+    
+Overall, none of the teacher-level variables show a strong or statistically significant impact on student math scores in this model. While some variables, such as teacher race and highest degree, suggest potential effects, the results are inconclusive due to high p-values. This indicates that school-level factors (as seen in Table 4.5) may play a more significant role in student performance than individual teacher characteristics.
+
+<center>
+```{r echo=FALSE, results='asis',warning=FALSE,message=FALSE}
+cat("Table 4.6 Teacher-Level Variables Coefficients.\n")
+# teacher level
+# Extract coefficients for teacher predictors
+teacher_factors <- robust_se[c(1,7:17), ]
+kable(teacher_factors, format = "html", align = "c") %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1:ncol(teacher_factors), width = "8em") 
+```
+</center>
+
+Table 4.7 evaluates the impact of student-level characteristics on math scores. For non-free lunch status, the baseline represents students who have free lunch. Thus, students without free lunch score 17.62 points higher than baseline, and this effect is highly significant (p < 0.0001). This suggests that students from higher socioeconomic backgrounds tend to perform better.
+
+For special education status, the baseline represents students in special education. Students who are not in special education score 9.82 points higher, but this effect is not statistically significant (p = 0.136).
+
+For special instruction status, students not receiving special instruction score 20.38 points higher than the baseline (students in special instruction), and this effect is highly significant (p < 0.0001). This indicates that students requiring special instruction tend to have lower math scores.
+
+For student attendance, a 1-unit increase in attendance is associated with a 0.42-point increase in math scores, which is also highly significant (p < 0.0001). This confirms that better attendance correlates with higher academic performance.
+
+Student factors have a substantial and statistically significant impact on math scores. Socioeconomic status (measured by free lunch eligibility), participation in special instruction, and student attendance all play critical roles. Higher-income students, those not requiring special instruction, and those with higher attendance tend to perform better in math.
+
+<center>
+```{r echo=FALSE, results='asis',warning=FALSE,message=FALSE}
+cat("Table 4.7 Student-Level Variables Coefficients.\n")
+# student level
+# Extract coefficients for student predictors
+teacher_factors <- robust_se[c(1,18:21), ]
+kable(teacher_factors, format = "html", align = "c") %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1:ncol(teacher_factors), width = "8em") 
+```
+</center>
+
+In conclusion, student background and school location significantly affect student performance, while all teacher-level factors do not show a significant impact on student performance. This suggests that factors such as socioeconomic status, participation in special instruction, and school location play a more prominent role in shaping student achievement than individual teacher characteristics.
+
+### Are other factors more influential?
+
+Figure 4.2 illustrates the standardized effect sizes for each predictor, showing the relative magnitude of each variable's influence on math scores (student performance). We can observe that student background and school locations, particularly rural and urban areas, have larger effects on student performance than class types. These findings are consistent with the strong coefficients and significant p-values observed in Section 4.3.2. This suggests that factors related to student background and the location of the school play a more substantial role in influencing student math scores than the class types.
+
+```{r fig.cap="Figure 4.2. Standardized Effect Sizes.", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+# Standardize coefficients to compare effect sizes
+std_coef <- data.frame(
+  Predictor = names(fixef(mixed_model)),
+  EffectSize = abs(fixef(mixed_model))  # Absolute values for comparison
+)
+
+# Plot
+ggplot(std_coef[-1, ], aes(x = reorder(Predictor, -EffectSize), y = EffectSize)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(x = "Predictor") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# Sensitivity analysis
+
+## Visualization of Model Residuals
+
+Now we examine the residual plots of the fitted model. The histogram of residuals shows a nearly normal distribution, suggesting that the residuals are approximately normally distributed. However, the residuals vs. fitted values plot reveals an evident pattern, indicating potential heteroscedasticity. This finding supports the use of robust standard errors in our analysis to account for the possible presence of heteroscedasticity.
+
+```{r fig.cap="Figure 5.1 Residual Plots.", fig.height = 4,fig.with = 3, echo=FALSE, fig.align='center',warning=FALSE,message=FALSE}
+residuals <- resid(mixed_model)
+fitted_values <- fitted(mixed_model)
+plot1 <- ggplot(data.frame(Residuals = residuals), aes(x = Residuals)) +
+  geom_histogram(bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+  labs(x = "Residuals", y = "Frequency") +
+  theme_minimal()
+plot2 <- ggplot(data.frame(Fitted = fitted_values, Residuals = residuals), aes(x = Fitted, y = Residuals)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, col = "red", linetype = "dashed") +
+  labs(x = "Fitted Values", y = "Residuals") +
+  theme_minimal()
+# Arrange plots side by side
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+## Whether answers to questions change without using robust standard errors?
+
+### Primary Question
+
+From Table 5.1, we can observe that the p-values for all class types are close to zero, indicating that they are statistically significant based on the ANOVA results. This answer to the primary question remains consistent with the findings in Section 4.2, suggesting that the conclusion is robust even without strict assumptions of normality and heteroscedasticity.
+
+<center>
+```{r echo=FALSE, results='asis',warning=FALSE,message=FALSE}
+cat("Table 5.1 Class Type Coefficients.\n")
+library(broom.mixed)
+model_summary <- tidy(mixed_model)
+kable(model_summary[1:3,-2], format = "html", align = "c") %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1:ncol(model_summary[1:3,-2]), width = "8em") 
+```
+</center>
+
+### Do other factors matter?
+
+For school-level variables in Table 5.2, we can find that coefficients of inner-city schools and rural schools show strong significance because of near-zero p-values. In addition, suburban and urban schools show a smaller significant relationship with math scores, as their p-values are less than 0.5. However, in 4.3.2, urban schools do not show statistically significant, which is different from the answer in this section. This result means potential heteroscedasticity or deviations from normality might influence our answer to this question. 
+
+<center>
+```{r echo=FALSE, results='asis',warning=FALSE,message=FALSE}
+cat("Table 5.2 School-Level Variables Coefficients.\n")
+library(broom.mixed)
+model_summary <- tidy(mixed_model)
+kable(model_summary[c(1,4:6),-2], format = "html", align = "c") %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1:ncol(model_summary[1:3,-2]), width = "8em") 
+```
+</center>
+
+For teacher-level variables in Table 5.3, we find that none of the variables show statistically significant results. This finding aligns with the results from Table 4.6, reinforcing the conclusion that teacher-level factors do not have a significant impact on student math scores in our model.
+
+<center>
+```{r echo=FALSE, results='asis',warning=FALSE,message=FALSE}
+cat("Table 5.3 Teacher-Level Variables Coefficients.\n")
+library(broom.mixed)
+model_summary <- tidy(mixed_model)
+kable(model_summary[c(1,7:17),-2], format = "html", align = "c") %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1:ncol(model_summary[1:3,-2]), width = "8em") 
+```
+</center>
+
+For student-level variables in Table 5.4, we find that all variables show statistically significant. However, from Table 4.7, we find the effect of the variable representing special education status is not statistically significant. This finding has the converse result with the finding from Table 4.7.  
+
+<center>
+```{r echo=FALSE, results='asis',warning=FALSE,message=FALSE}
+cat("Table 5.4 Student-Level Variables Coefficients.\n")
+library(broom.mixed)
+model_summary <- tidy(mixed_model)
+kable(model_summary[c(1,18:21),-2], format = "html", align = "c") %>%
+  kable_styling(full_width = FALSE) %>%
+  column_spec(1:ncol(model_summary[1:3,-2]), width = "8em") 
+```
+</center>
+
+Therefore, based on findings in 5.1.1 and 5.1.2, the answers to these questions are not always the same as the answers we gained in 4.2 and 4.3. This means potential heteroscedasticity or deviations from normality might affect our answers, so we should keep using robust standard errors in our analysis to relax the strict assumptions required for ANOVA models. 
+
+# Discussion
+
+In this project, we choose a mixed-effect model to explore the relationship between student performance (1st-grade math scores) and relative factors affect classroom environment, including class types (primary variable), school-level, teacher-level, student-level variables. 
+
+The equation of our model equation is: 
+$$Y_{ijk} = \beta_0 + \beta_1\text{(ClassType)}_{ij} + \beta_2\text{(SchoolUrbanicity)}_i + 
+\beta_3\text{(TeacherGender)}_{ij} + \beta_4\text{(TeacherExperience)}_{ij} \\+ \beta_5\text{(TeacherDegree)}_{ij} + \beta_6\text{(TeacherCareer)}_{ij} + \beta_7\text{(TeacherRace)}_{ij} + \beta_8\text{(FreeLunch)}_{ijk}\\ + \beta_9\text{(SpecialEd)}_{ijk} + \beta_{10}\text{(SpecialInstruct)}_{ijk} + \beta_{11}\text{(Attendance)}_{ijk} + \mu_i + v_{ij} + \epsilon_{ijk}$$
+where: the index $i$ represents the i-th school ($i=1,\dots,M$), the index $j$ represents the j-th teacher within school i ($j=1,\dots,J_i$), and the index $k$ represents the k-th student within teacher j in school i ($k=1,\dots,K_{ij}$). 
+
+In our inferential analysis, we obtain answers to our questions of interest as stated in the introduction. Now, our answers to these questions are as follows:
+
+Primary Question: Class type (Small, Regular, Regular with Aide) significantly affects 1st-grade math scores.
+
+Secondary Questions:
+
+1. The Small class is associated with the highest 1st-grade math scores. Students in the Small class outperform those in both the Regular and Regular+Aide classes.
+
+2. Student background factors, except for special education status and school locations, significantly affect student performance, while all teacher-level factors have no significant effect.
+
+3. Student background factors, except for special education status and attendance, and school locations, except for inner-city schools, have a larger effect on student performance than class type.
+
+However, for the fourth secondary question (Are other factors more cost-effective in improving classroom environments than class size alone?), further exploration is needed to obtain a definitive answer. As discussed in Section 2.4, this topic remains debated, with researchers such as Levin and McEwan (2001) arguing that alternative investments, such as teacher development, may yield higher returns than class size reduction. However, in this project, we find that all teacher-level factors have no significant effect on student performance due to their large p-values, which contradicts this argument. This result may be due to the inability of these teacher-level variables to perfectly represent teacher quality. For example, Martin (2023) found that traditional indicators of teacher quality, such as advanced degrees or years of experience, do not consistently correlate with student achievement, which aligns with our finding. Therefore, for further investigation, we will seek datasets that include variables related to teacher quality or develop methods to measure teacher quality using existing variables.
+
+Thus, we now aim to explore whether implementing policies that consider student background factors (excluding special education status and attendance) and school locations (excluding inner-city schools)—the variables with the largest effects—would be more cost-effective than class size reduction. In terms of student background, a common policy approach is to provide financial aid to students from low-income backgrounds. However, while overall funding can be controlled, this approach may have unintended consequences. Due to limited funding, students who need financial support must compete with their peers, and those from better backgrounds may outperform them, making it harder for the most disadvantaged students to receive support. Consequently, students from better backgrounds may have more opportunities to improve their circumstances compared to those with the greatest disadvantages. William J. (2017) indicated that smaller class sizes have a more pronounced positive effect on low-income and minority children, suggesting that class size reduction can help narrow achievement gaps, rather than creating larger achievement gaps with the former method.
+
+Regarding school locations, designing policies to address this factor is challenging for policymakers and school administrators. Moving schools to different locations would be costly and impractical. Additionally, our analysis finds that students in inner-city schools tend to have lower academic performance, which correlates with a higher student-teacher ratio due to the large population in urban areas. In this context, class size reduction may be a more cost-effective strategy to improve student performance. Additionally, the definition of inner-city schools includes those with more than half of their students on free or reduced-price lunch, meaning more than half of their students come from poor backgrounds, as we have analyzed in 3.2.4. For this situation, we have discussed the issue and concluded that class size reduction can help narrow achievement gaps.
+
+From these findings, focusing on class size reduction appears to be a more straightforward and effective policy lever for improving student outcomes, particularly for disadvantaged populations. Therefore, the answer to the fourth secondary question is that class size reduction appears to be the most cost-effective method for improving classroom environments and student performance compared to other influencing factors.
+
+# Acknowledgement {-}
+
+Discuss with instructors and Yuyao Nie. 
+
+# Reference {-}
+
+Achilles, C. M., Bain, H. P., Bellott, F., Boyd-Zaharias, J., Finn, J., Folger, J., Johnston, J., & Word, E. (2008). Tennessee's Student Teacher Achievement Ratio (STAR) project. Harvard Dataverse, V1. https://doi.org/10.7910/DVN/SIWH9F
+
+Chetty, R., Friedman, J. N., Hilger, N., Saez, E., Schanzenbach, D. W., & Yagan, D. (2011). How does your kindergarten classroom affect your earnings? Evidence from Project Star. The quarterly journal of economics, 126(4), 1593–1660. https://doi.org/10.1093/qje/qjr041
+
+Finn, J. D., & Achilles, C. M. (1999). Tennessee’s Class Size Study: Findings, Implications, Misconceptions. Educational Evaluation and Policy Analysis, 21(2), 97–109. https://doi.org/10.2307/1164294
+
+Krueger, A. B. (1999). Experimental estimates of education production functions. The Quarterly Journal of Economics, 114(2), 497–532. https://doi.org/10.1162/003355399556052
+
+Rivkin, S. G., Hanushek, E. A., & Kain, J.F. (2005). Teachers, Schools, and Academic Achievement. Econometrica, 73, 417-458. http://dx.doi.org/10.1111/j.1468-0262.2005.00584.x
+
+Krueger, A.B. (2003), Economic Considerations and Class Size*. The Economic Journal, 113: F34-F63. https://doi.org/10.1111/1468-0297.00098
+
+Mosteller F. (1995). The Tennessee study of class size in the early school grades. The Future of children, 5(2), 113–127.
+
+Finn, J. D., & Achilles, C. M. (1990). Answers and questions about class size: A statewide experiment. American Educational Research Journal, 27(3), 557-577. https://doi.org/10.3102/00028312027003557
+
+Nye, B., Hedges, L. V., & Konstantopoulos, S. (2000). The effects of small classes on academic achievement: The results of the Tennessee class size experiment. American Educational Research Journal, 37(1), 123-151. https://doi.org/10.3102/00028312037001123
+
+Hanushek, E. A. (1999). Some Findings From an Independent Investigation of the Tennessee STAR Experiment and From Other Investigations of Class Size Effects. Educational Evaluation and Policy Analysis, 21(2), 143-163. https://doi.org/10.3102/01623737021002143
+
+Hattie, J. (2008). Visible Learning: A Synthesis of Over 800 Meta-Analyses Relating to Achievement (1st ed.). Routledge. https://doi.org/10.4324/9780203887332
+
+Achilles, C. M. (1999). Class-size policy: The STAR experiment and related class-size studies (NCPEA Policy Brief, Vol. 1, No. 2). NCPEA Publications. http://www.ncpeaprofessors.org
+
+Chetty, R., Friedman, J. N., & Rockoff, J. E. (2014). Measuring the Impacts of Teachers I: Evaluating Bias in Teacher Value-Added Estimates. The American Economic Review, 104(9), 2593–2632. https://doi.org/10.1257/aer.104.9.2593
+
+Coleman, J., Campbell, E., Hobson, C., McPartland, J., Mood, A., Weinfield, F., & York, R. (1966). Equality of Educational Opportunity. Washington: US Department of Education and Welfare. Publication of National Center for Educational Statistics. Superintendent Documents Catalog No. FS 5.238.38001.
+
+Lee, V. E., & Burkam, D. T. (2003). Dropping Out of High School: The Role of School Organization and Structure. American Educational Research Journal, 40(2), 353-393. https://doi.org/10.3102/00028312040002353
+
+Levin H. M., McEwan P. J., . (2001). Cost-effectiveness analysis. Thousand Oaks, Calif: Sage Publications.
+
+Andre Anthony Martin, 2023. "Exploring the impact of teacher quality on student academic achievement in primary schools," American Journal of Social Sciences and Humanities, Online Science Publishing, vol. 8(1), pages 35-45.
+
+Mathis, William J. (2017), “The Effectiveness of Class Size Reduction,” Psychosociological Issues in Human Resource Management 5(1): 176–183. 
+
+# Session info {-}

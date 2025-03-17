@@ -1,0 +1,371 @@
+---
+title: "final_project_code"
+output: html_document
+date: "2025-03-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# related library
+library(haven)
+library(dplyr)
+library(naniar)
+library(ggplot2)
+library(gplots)
+library(lme4)
+library(emmeans)
+library(FSA)
+library(corrplot)
+library(GGally)
+# load data
+star_data <- read_sav("STAR_Students.sav")
+star_data_g1 <- dplyr::select(star_data, g1schid, g1surban, g1tchid, g1tgen, g1trace, g1thighdegree, g1tcareer, g1tyears, g1classtype, g1freelunch, g1promote, g1speced, g1specin, g1present, g1absent,g1treadss,g1tmathss,g1tlistss,g1wordskillss,g1readbsraw,g1mathbsraw,g1readbsobjraw,g1mathbsobjraw,g1readbsobjpct,g1mathbsobjpct,g1motivraw,g1selfconcraw,flagg1,FLAGSG1)
+g1_responses <- star_data_g1 %>%
+  select(g1promote,g1treadss,g1tmathss,g1tlistss,g1wordskillss,g1readbsraw,g1mathbsraw,g1readbsobjraw,g1mathbsobjraw,g1readbsobjpct,g1mathbsobjpct,g1motivraw,g1selfconcraw)
+g1_variables <- star_data_g1 %>%
+  select(g1tmathss, g1schid, g1surban, g1tchid, g1tgen, g1trace, g1thighdegree, g1tcareer, g1tyears, g1classtype, g1freelunch, g1speced, g1specin, g1present, g1absent,flagg1,FLAGSG1)
+g1_variables <- g1_variables %>%
+  mutate( 
+    g1schid = as.factor(g1schid), 
+    g1surban = factor(g1surban,
+                      levels = c(1,2,3,4),
+                      labels = c("Inner City", "Suburban", "Rural", "Urban")),
+    g1tchid = as.factor(g1tchid),
+    g1tgen = factor(g1tgen,
+                    levels = c(1, 2),
+                    labels = c("Male", "Female")),
+    g1trace = factor(g1trace,
+                      levels = c(1,2),
+                      labels = c("White", "Black")),
+    g1thighdegree = factor(g1thighdegree,
+                      levels = c(2,3,5,6),
+                      labels = c("Bachelors", "Masters", "Specialist", "Doctoral")),
+    g1tcareer = factor(g1tcareer,
+                      levels = c(1,2,3,4,5,6),
+                      labels = c("Chose not to be on career ladder", "Apprentice", "Probation", "Ladder level 1", "Ladder level 2", "Ladder level 3")),
+    g1classtype = factor(g1classtype, 
+                         levels = c(1, 2, 3),
+                         labels = c("Small", "Regular", "Regular+Aide")), 
+    g1freelunch = factor(g1freelunch,
+                    levels = c(1, 2),
+                    labels = c("Free lunch", "Non-free lunch")),
+    g1speced = factor(g1speced,
+                    levels = c(1, 2),
+                    labels = c("Yes", "No")),
+    g1specin = factor(g1specin,
+                    levels = c(1, 2),
+                    labels = c("Yes", "No")),
+    flagg1 = ifelse(flagg1 == 1, 1, NA),
+    FLAGSG1 = ifelse(FLAGSG1 == 1, 1, NA)
+  )
+```
+# Background
+## target population
+```{r}
+g1_num=sum(is.na(g1_variables$FLAGSG1))
+g1_proportions=data.matrix(colSums(is.na(g1_variables))-g1_num)/ g1_num * 100
+g1_proportions_value=(colSums(is.na(g1_variables))-g1_num)/ g1_num * 100
+data <- data.frame(
+  `Variable_1` = c(rownames(g1_proportions)[1:5]),
+  `Proportion_1` = sprintf("%.2f", g1_proportions_value[1:5]),
+  `Variable_2` = c(rownames(g1_proportions)[6:10]),
+  `Proportion_2` = sprintf("%.2f", g1_proportions_value[6:10]),
+  `Variable_3` = c(rownames(g1_proportions)[11:15]),
+  `Proportion_3` =sprintf("%.2f", g1_proportions_value[11:15]),
+  `Variable_4` = c(rownames(g1_proportions)[16:17], "","",""),
+  `Proportion_4` = c(sprintf("%.2f", g1_proportions_value[16:17]), "","","")
+)
+```
+
+```{r}
+# missing patterns
+library(naniar)
+gg_miss_var(g1_variables)
+# dropping missing value
+g1_variables <- g1_variables %>% filter(complete.cases(.))
+```
+
+## Variables Selection
+
+```{r}
+library(lme4)
+# Null model with only random effects (Intercept-only model)
+null_model <- lmer(g1tmathss ~1+ (1 | g1schid/g1tchid), data = g1_variables)
+summary(null_model)
+VarCorr(null_model)
+library(performance)
+icc(null_model)
+```
+# Descriptive analysis
+```{r}
+g1_variables <- g1_variables %>%
+  mutate(g1sattendance=g1present/(g1absent+g1present))
+g1_variables$g1sattendance <- 180*g1_variables$g1sattendance
+g1_variables_selected <- g1_variables %>%
+  select(g1tmathss, g1classtype, g1schid, g1surban, g1tchid, g1tgen, g1trace, g1thighdegree, g1tcareer, g1tyears, g1freelunch, g1speced, g1specin,g1sattendance)
+summary(g1_variables_selected)
+```
+## primary factor
+```{r}
+library(ggplot2)
+plot1=ggplot(g1_variables_selected, aes(x = g1classtype, fill = g1classtype)) +
+  geom_bar() +
+  labs(x = "Class Type", y = "Count")+
+  theme(
+    legend.text = element_text(size = 5),  
+    legend.title = element_text(size = 6)
+  )
+plot2=ggplot(g1_variables_selected, aes(x = g1tmathss, fill = g1classtype)) +
+  geom_density(alpha = 0.5) +
+  labs(x = "Math Scores", y = "Density")+
+  theme(
+    legend.text = element_text(size = 5),  
+    legend.title = element_text(size = 6)
+  )
+grid.arrange(plot1, plot2, ncol = 2)
+```
+## secondary factor
+```{r}
+library(gridExtra)
+# school level
+# school
+school_level <- g1_variables_selected %>%
+  group_by(g1schid) %>%
+  summarise(
+    mean = mean(g1tmathss, na.rm = TRUE),   # Mean of mean math scores
+    median = median(g1tmathss, na.rm = TRUE),  # Median of mean math scores
+    min = min(g1tmathss, na.rm = TRUE),  # Minimum of mean math scores
+    max = max(g1tmathss, na.rm = TRUE),  # Maximum of mean math scores
+    n_students = n(),   
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean))
+# Top-performing schools
+head(school_level, 5)
+# Bottom-performing schools
+tail(school_level, 5)
+# School Urbanicity
+plot1=ggplot(g1_variables_selected, aes(x = g1surban, fill = g1surban)) +
+  geom_bar() +
+  labs(title = "School Distribution by Urbanicity", x = "Urbanicity", y = "Count")
+plot2=ggplot(g1_variables_selected, aes(x = g1surban, y = g1tmathss, fill = g1surban)) +
+  geom_boxplot() +
+  labs(title = "Math Scores by School Urbanicity", x = "Urbanicity", y = "Math Scores")
+grid.arrange(plot1, plot2, ncol = 2)
+# Aggregate data
+agg_data <- g1_variables_selected %>%
+  group_by(g1classtype, g1surban) %>%
+  summarise(avg_math = mean(g1tmathss, na.rm = TRUE))
+# Heatmap
+plot1=ggplot(agg_data, aes(x = g1classtype, y = g1surban, fill = avg_math)) +
+  geom_tile() +
+  scale_fill_viridis_c() +
+  labs(title = "Average Math Scores by Class Type and Urbanicity")
+# Interaction Between School Type and Class Type
+plot2 <- ggplot(agg_data, aes(x = g1surban, y = avg_math, color = g1classtype, group = g1classtype)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Interaction: School Type vs. Class Type",
+       x = "School Type",
+       y = "Average Math Scores",
+       color = "Class Type")
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+```{r}
+# teacher level
+# teacher
+teacher_level <- g1_variables_selected %>%
+  group_by(g1tchid) %>%
+  summarise(
+    mean = mean(g1tmathss, na.rm = TRUE),   # Mean of mean math scores
+    median = median(g1tmathss, na.rm = TRUE),  # Median of mean math scores
+    min = min(g1tmathss, na.rm = TRUE),  # Minimum of mean math scores
+    max = max(g1tmathss, na.rm = TRUE),  # Maximum of mean math scores
+    n_students = n(),   
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean))
+# Top-performing schools
+head(teacher_level, 5)
+# Bottom-performing schools
+tail(teacher_level, 5)
+# teacher gender 
+plot1=ggplot(g1_variables_selected, aes(x = g1tgen, fill = g1tgen)) +
+  geom_bar() +
+  labs(title = "Teacher Gender Distribution", x = "Gender", y = "Count") +
+  theme_minimal()
+plot2=ggplot(g1_variables_selected, aes(x = g1tgen, y = g1tmathss, fill = g1tgen)) +
+  geom_boxplot() +
+  labs(title = "Math Scores by Teacher Gender", x = "Gender", y = "Math Scores") +
+  theme_minimal()
+grid.arrange(plot1, plot2, ncol = 2)
+# teacher race
+ggplot(g1_variables_selected, aes(x = g1classtype, fill = g1trace)) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Student Race Distribution by Class Type",
+    x = "Class Type",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+# g1thighdegree
+plot1=ggplot(g1_variables_selected, aes(x = g1thighdegree, fill = g1thighdegree)) +
+  geom_bar() +
+  labs(title = "Teacher Highest Degree Distribution", x = "Degree", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  theme_minimal()
+plot2=ggplot(g1_variables_selected, aes(x = g1thighdegree, y = g1tmathss, fill = g1thighdegree)) +
+  geom_boxplot() +
+  labs(title = "Math Scores by Teacher Degree", x = "Degree", y = "Math Scores") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  theme_minimal()
+grid.arrange(plot1, plot2, ncol = 2)
+# Teacher Career Ladder
+plot1=ggplot(g1_variables_selected, aes(x = g1tcareer, fill = g1tcareer)) +
+  geom_bar() +
+  labs(x = "Career Ladder Level", y = "Count") +
+  theme(
+    legend.text = element_text(size = 5),  
+    legend.title = element_text(size = 6),
+    axis.text.x = element_text(angle = 45, hjust = 1,size=5))
+# Violin plot
+plot2=ggplot(g1_variables_selected, aes(x = g1tcareer, y = g1tmathss, fill = g1tcareer)) +
+  geom_violin() +
+  labs(x = "Career Ladder Level", y = "Math Scores")+
+  theme(
+    legend.text = element_text(size = 5),  
+    legend.title = element_text(size = 6),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 5)
+  )
+grid.arrange(plot1, plot2, ncol = 2)
+# teacher experience years
+# Density plot of teaching experience
+plot1=ggplot(g1_variables_selected, aes(x = g1tyears)) +
+  geom_density(fill = "skyblue", alpha = 0.7) +
+  labs(title = "Distribution of Teacher Experience (Years)")+
+  theme_minimal()
+# Scatterplot with regression lines
+plot2=ggplot(g1_variables_selected, aes(x = g1tyears, y = g1tmathss, color = g1classtype)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(title = "Math Scores vs. Teacher Experience", x = "Years of Experience", y = "Math Scores")+
+  theme_minimal()
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+```{r}
+# Student Background
+# Density plot
+ggplot(g1_variables_selected, aes(x = g1tmathss, fill = g1freelunch)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Math Scores by Free Lunch Eligibility", x = "Math Scores", y = "Density")
+plot1=ggplot(g1_variables_selected, aes(x = g1specin, y = g1tmathss)) + 
+  geom_boxplot()
+plot2=ggplot(g1_variables_selected, aes(x = g1speced, y = g1tmathss)) + 
+  geom_boxplot()
+plot3=ggplot(g1_variables_selected, aes(x = g1sattendance, y = g1tmathss)) + 
+  geom_point(alpha = 0.3) + 
+  geom_smooth(method = "lm")
+# Arrange the plots in a single row
+grid.arrange(plot1, plot2, plot3, ncol = 3)
+```
+
+# Inferential analysis
+
+```{r}
+library(car)
+VIF=vif(lm(g1tmathss~g1classtype+g1surban+g1tgen+g1trace+g1thighdegree+g1tcareer+g1tyears+g1freelunch+g1speced+g1specin+g1sattendance, data = g1_variables_selected))
+```
+```{r}
+fixed_model=lm(g1tmathss~g1classtype+g1surban+g1tgen+g1trace+g1thighdegree+g1tcareer+g1tyears+g1freelunch+g1speced+g1specin+g1sattendance 
+         ,g1_variables_selected)
+library(lmerTest)
+mixed_model <- lmer(
+  g1tmathss~g1classtype+g1surban+g1tgen+g1trace+g1thighdegree+g1tcareer+g1tyears+g1freelunch+g1speced+g1specin+g1sattendance + (1 | g1schid/g1tchid),  # Schools > Teachers (nested)
+  data = g1_variables_selected, 
+  REML = TRUE
+)
+anova(mixed_model,fixed_model)
+```
+```{r}
+library(clubSandwich)
+# Robust standard errors (adjusting for heteroscedasticity/clustering)
+robust_se <- coef_test(mixed_model, vcov = "CR2")
+```
+```{r}
+# primary variable
+# Extract class type coefficients
+class_type_results <- robust_se[1:3, ]
+print(class_type_results)
+library(emmeans)
+# Pairwise comparisons with Tukey adjustment
+emm <- emmeans(mixed_model, pairwise ~ g1classtype)
+print(emm$contrasts)
+# Plot estimated marginal means
+plot(emm, comparisons = TRUE) + 
+  labs(title = "Class Type Comparison (Adjusted for Covariates)")
+```
+```{r}
+# school level
+# Extract coefficients for school predictors
+school_factors <- robust_se[c(1,4:6), ]
+print(school_factors)
+```
+```{r}
+# teacher level
+# Extract coefficients for teacher predictors
+teacher_factors <- robust_se[c(1,7:17), ]
+print(teacher_factors)
+```
+```{r}
+# student level
+# Extract coefficients for student predictors
+teacher_factors <- robust_se[c(1,18:21), ]
+print(teacher_factors)
+```
+```{r}
+# Standardize coefficients to compare effect sizes
+std_coef <- data.frame(
+  Predictor = names(fixef(mixed_model)),
+  EffectSize = abs(fixef(mixed_model))  # Absolute values for comparison
+)
+
+# Plot
+ggplot(std_coef[-1, ], aes(x = reorder(Predictor, -EffectSize), y = EffectSize)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Standardized Effect Sizes", x = "Predictor") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+```{r}
+library(MuMIn)
+r.squaredGLMM(mixed_model)
+```
+
+# Sensitivity analysis
+```{r}
+residuals <- resid(mixed_model)
+fitted_values <- fitted(mixed_model)
+plot1 <- ggplot(data.frame(Residuals = residuals), aes(x = Residuals)) +
+  geom_histogram(bins = 30, fill = "lightblue", color = "black", alpha = 0.7) +
+  labs(title = "Histogram of Residuals", x = "Residuals", y = "Frequency") +
+  theme_minimal()
+plot2 <- ggplot(data.frame(Fitted = fitted_values, Residuals = residuals), aes(x = Fitted, y = Residuals)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, col = "red", linetype = "dashed") +
+  labs(title = "Residuals vs. Fitted", x = "Fitted Values", y = "Residuals") +
+  theme_minimal()
+# Arrange plots side by side
+grid.arrange(plot1, plot2, ncol = 2)
+```
+```{r}
+summary(mixed_model)
+```
+
+
+
+
+
